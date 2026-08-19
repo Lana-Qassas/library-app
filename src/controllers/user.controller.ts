@@ -1,57 +1,53 @@
-import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { prisma } from "../prisma/client";
+import { Request, Response, NextFunction } from "express";
+import { userService } from "../services/user.service";
+import { AuthRequest } from "../middleware/auth";
 
-export const createUser = async (req: Request, res: Response) => {
+export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "جميع الحقول مطلوبة" });
-    }
-
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(409).json({ message: "البريد الإلكتروني مستخدم بالفعل" });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword },
-    });
-
-    const secret = process.env.JWT_SECRET as string;
-    const token = jwt.sign({ id: user.id, email: user.email }, secret, {
-      expiresIn: "1d",
-    });
-
-    return res.status(201).json({
-      message: "تم إنشاء المستخدم بنجاح",
-      user: { id: user.id, name: user.name, email: user.email },
-      token,
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "حدث خطأ في الخادم", error });
+    const result = await userService.register(req.body);
+    return res.status(201).json({ message: "تم إنشاء المستخدم بنجاح", ...result });
+  } catch (err) {
+    next(err);
   }
 };
 
-export const getUsers = async (_req: Request, res: Response) => {
+export const getUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        updatedAt: true,
-        libraries: true,
-      },
-    });
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 10, 100);
+    const result = await userService.list(page, limit);
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
 
-    return res.status(200).json(users);
-  } catch (error) {
-    return res.status(500).json({ message: "حدث خطأ في الخادم", error });
+export const getUserById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    const user = await userService.getById(id);
+    return res.status(200).json(user);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    const user = await userService.update(req.user!.id, id, req.body);
+    return res.status(200).json({ message: "تم تحديث المستخدم بنجاح", user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    await userService.remove(req.user!.id, id);
+    return res.status(200).json({ message: "تم حذف المستخدم بنجاح" });
+  } catch (err) {
+    next(err);
   }
 };

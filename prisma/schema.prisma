@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -14,11 +14,10 @@ model User {
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   libraries Library[]
 
   @@map("users")
-  @@unique([id, name])
-  @@index([email])
 }
 
 model Library {
@@ -27,8 +26,11 @@ model Library {
   address   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  userId Int
-  user   User@relation(fields: [userId], references: [id])
 
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
   @@map("libraries")
 }
